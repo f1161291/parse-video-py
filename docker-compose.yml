@@ -2,6 +2,6 @@ services:
   parse-video-py:
     image: ghcr.io/f1161291/parse-video-py:latest
     container_name: parse-video-py
-    restart: unless-stopped
+    restart: always
     ports:
-      - "127.0.0.1:8000:8000"
+      - "8000:8000"
