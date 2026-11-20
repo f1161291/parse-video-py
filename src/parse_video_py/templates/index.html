@@ -2926,6 +2926,20 @@ function setValue() {
         titleEl.textContent = typeof data.title === 'string' ? data.title : '';
         result.appendChild(titleEl);
 
+        // 视频预览播放器：走同源 /preview 代理，规避跨域与 403，支持拖动进度
+        if (data.video_url) {
+            const player = document.createElement('video');
+            player.controls = true;
+            player.preload = 'metadata';
+            player.playsInline = true;
+            player.style.cssText = 'width:100%;max-width:720px;max-height:70vh;background:#000;border-radius:6px;margin:8px 0;';
+            if (typeof data.cover_url === 'string' && data.cover_url) {
+                player.poster = data.cover_url;
+            }
+            player.src = window.location.origin + '/preview?u=' + encodeURIComponent(data.video_url);
+            result.appendChild(player);
+        }
+
         appendDownloadLink(result, '下载封面', data.cover_url, { download: 'video' });
 
         // 如果video_url不为空, 则显示下载视频按钮

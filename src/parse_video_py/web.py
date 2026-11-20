@@ -211,4 +211,70 @@ async def download_with_title(u: str = "", name: str = "", token: str = ""):
     )
 
 
+# ---------------------------------------------------------------------------
+# 同源视频预览代理
+# 供网页 <video> 播放器使用：转发视频流并设置抖音 Referer 规避 403，
+# 同时透传 Range / Content-Range 让浏览器能拖动进度条。
+# ---------------------------------------------------------------------------
+@app.get("/preview")
+async def preview_video(request: Request, u: str = "", token: str = ""):
+    import urllib.parse
+
+    from fastapi.responses import StreamingResponse
+
+    # 与 /download 共用同一可选鉴权
+    expected = os.getenv("PARSE_VIDEO_DOWNLOAD_TOKEN", "")
+    if expected and not secrets.compare_digest(token, expected):
+        return JSONResponse({"code": 401, "msg": "unauthorized"}, status_code=401)
+
+    if not u:
+        return JSONResponse({"code": 400, "msg": "missing url"}, status_code=400)
+    try:
+        parsed = urllib.parse.urlsplit(u)
+    except ValueError:
+        return JSONResponse({"code": 400, "msg": "invalid url"}, status_code=400)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return JSONResponse({"code": 400, "msg": "invalid url"}, status_code=400)
+
+    upstream_headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://www.douyin.com/",
+    }
+    # 转发浏览器的 Range 请求头，支持拖动播放进度
+    range_header = request.headers.get("range")
+    if range_header:
+        upstream_headers["Range"] = range_header
+
+    client = httpx.AsyncClient(follow_redirects=True, timeout=180)
+    try:
+        upstream = await client.send(
+            client.build_request("GET", u, headers=upstream_headers), stream=True
+        )
+    except Exception:
+        await client.aclose()
+        return JSONResponse({"code": 502, "msg": "upstream error"}, status_code=502)
+
+    # 回传分段相关响应头，浏览器才能正确计算时长与拖动
+    resp_headers = {"Cache-Control": "no-store"}
+    for key in ("content-range", "accept-ranges", "content-length"):
+        val = upstream.headers.get(key)
+        if val:
+            resp_headers[key] = val
+
+    async def stream_body():
+        try:
+            async for chunk in upstream.aiter_bytes():
+                yield chunk
+        finally:
+            await upstream.aclose()
+            await client.aclose()
+
+    return StreamingResponse(
+        stream_body(),
+        status_code=upstream.status_code,  # 200 或 206
+        media_type=upstream.headers.get("content-type", "video/mp4"),
+        headers=resp_headers,
+    )
+
+
 mcp.setup_server()
