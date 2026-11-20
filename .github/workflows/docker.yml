@@ -1,40 +1,56 @@
-name: dev Build Docker Image
+name: Build & Push Docker Image (GHCR)
 
+# 每次 push 到 main 自动构建镜像并推送到 GitHub Container Registry。
+# 使用内置的 GITHUB_TOKEN，无需在仓库里手动配置任何 secrets。
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  # 也支持手动触发
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write   # 推送镜像到 GHCR 必需
+
+env:
+  REGISTRY: ghcr.io
+  # github.repository 形如 owner/parse-video-py，GHCR 镜像名自动带 owner 命名空间
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build:
-    name: Build Docker Image
+  build-and-push:
     runs-on: ubuntu-latest
     steps:
-
-      - name: Checkout Github Code
-        uses: actions/checkout@v3
-
-      - name: Set Up Python Environment
-        uses: actions/setup-python@v3
-        with:
-          python-version: "3.13"
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
 
       - name: Build and push
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/parse-video-py:latest
-          platforms: |
-            linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

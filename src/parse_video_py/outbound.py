@@ -29,6 +29,12 @@ UPSTREAM_DOMAINS: dict[VideoSource, list[str]] = {
         "iesdouyin.com",
         "aweme.snssdk.com",
         "douyinvod.com",
+        # 抖音视频直链 302 跳转后落到的 CDN 域名，官方白名单遗漏，
+        # 导致 get_video_redirect_url 抛 OutboundError（解析失败）。
+        "365yg.com",
+        "ixigua.com",
+        "snssdk.com",
+        "byteimg.com",
     ],
     VideoSource.HuYa: ["huya.com"],
     VideoSource.KuaiShou: ["kuaishou.com", "chenzhongtech.com"],

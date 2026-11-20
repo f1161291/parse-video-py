@@ -2930,7 +2930,8 @@ function setValue() {
 
         // 如果video_url不为空, 则显示下载视频按钮
         if (data.video_url) {
-            appendDownloadLink(result, '下载视频', data.video_url, { download: 'video' });
+            const dlTitle = typeof data.title === 'string' && data.title.trim() ? data.title.trim() : 'video';
+            appendDownloadLink(result, '下载视频', '/download?u=' + encodeURIComponent(data.video_url) + '&name=' + encodeURIComponent(dlTitle), { download: dlTitle });
         }
 
         // 如果music_url不为空, 则显示下载音频按钮

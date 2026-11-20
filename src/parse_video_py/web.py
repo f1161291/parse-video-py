@@ -159,4 +159,56 @@ async def video_id_parse(source: VideoSource, video_id: str):
         }
 
 
+# ---------------------------------------------------------------------------
+# 同源视频下载代理
+# 解析出的视频直链位于 *.365yg.com 等动态 CDN 域名，跨站下载时浏览器会忽略
+# <a download> 的文件名，且小程序真机 downloadFile 受合法域名限制。此路由让
+# 浏览器/小程序从本站域名下载视频流，并通过 Content-Disposition 用标题命名。
+# ---------------------------------------------------------------------------
+@app.get("/download")
+async def download_with_title(u: str = "", name: str = "", token: str = ""):
+    import urllib.parse
+
+    from fastapi.responses import StreamingResponse
+
+    # 可选鉴权：配置 PARSE_VIDEO_DOWNLOAD_TOKEN 后必须带匹配的 token，
+    # 防止本接口被当作公开的中转代理滥用。未配置时保持开放（个人使用）。
+    expected = os.getenv("PARSE_VIDEO_DOWNLOAD_TOKEN", "")
+    if expected and not secrets.compare_digest(token, expected):
+        return JSONResponse({"code": 401, "msg": "unauthorized"}, status_code=401)
+
+    if not u:
+        return JSONResponse({"code": 400, "msg": "missing url"}, status_code=400)
+    try:
+        parsed = urllib.parse.urlsplit(u)
+    except ValueError:
+        return JSONResponse({"code": 400, "msg": "invalid url"}, status_code=400)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return JSONResponse({"code": 400, "msg": "invalid url"}, status_code=400)
+
+    # 清洗标题作为文件名，去掉路径分隔符等非法字符
+    safe = "".join(c for c in name if c not in '\\/:*?"<>|\r\n').strip() or "video"
+    disp = (
+        'attachment; filename="video.mp4"; filename*=UTF-8\'\''
+        + urllib.parse.quote(safe + ".mp4")
+    )
+
+    async def stream():
+        async with httpx.AsyncClient(follow_redirects=True, timeout=180) as client:
+            async with client.stream(
+                "GET",
+                u,
+                headers={
+                    "User-Agent": "Mozilla/5.0",
+                    "Referer": "https://www.douyin.com/",
+                },
+            ) as resp:
+                async for chunk in resp.aiter_bytes():
+                    yield chunk
+
+    return StreamingResponse(
+        stream(), media_type="video/mp4", headers={"Content-Disposition": disp}
+    )
+
+
 mcp.setup_server()
