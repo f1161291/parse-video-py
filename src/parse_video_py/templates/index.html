@@ -2931,7 +2931,9 @@ function setValue() {
         // 如果video_url不为空, 则显示下载视频按钮
         if (data.video_url) {
             const dlTitle = typeof data.title === 'string' && data.title.trim() ? data.title.trim() : 'video';
-            appendDownloadLink(result, '下载视频', '/download?u=' + encodeURIComponent(data.video_url) + '&name=' + encodeURIComponent(dlTitle), { download: dlTitle });
+            // safeMediaURL 只接受 http(s) 绝对地址，必须拼接 origin，否则相对路径被拒、按钮不渲染
+            const dlUrl = window.location.origin + '/download?u=' + encodeURIComponent(data.video_url) + '&name=' + encodeURIComponent(dlTitle);
+            appendDownloadLink(result, '下载视频', dlUrl, { download: dlTitle });
         }
 
         // 如果music_url不为空, 则显示下载音频按钮
