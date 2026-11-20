@@ -115,7 +115,7 @@ async def read_item(request: Request):
         request=request,
         name="index.html",
         context={
-            "title": "github.com/wujunwei928/parse-video-py Demo",
+            "title": "视频解析",
         },
     )
 
