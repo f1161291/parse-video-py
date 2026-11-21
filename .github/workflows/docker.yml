@@ -1,7 +1,7 @@
-name: Build & Push Docker Image (GHCR)
+name: Build & Push Docker Image (GHCR + Docker Hub)
 
-# 每次 push 到 main 自动构建镜像并推送到 GitHub Container Registry。
-# 使用内置的 GITHUB_TOKEN，无需在仓库里手动配置任何 secrets。
+# push 到 main 或手动触发时构建多架构镜像，同时推送到 GHCR 和 Docker Hub。
+# GHCR 用内置 GITHUB_TOKEN；Docker Hub 需在仓库 Secrets 配置 DOCKERHUB_TOKEN（Access Token，不要用账号密码）。
 on:
   push:
     branches: [ "main" ]
@@ -16,6 +16,7 @@ env:
   REGISTRY: ghcr.io
   # github.repository 形如 owner/parse-video-py，GHCR 镜像名自动带 owner 命名空间
   IMAGE_NAME: ${{ github.repository }}
+  DOCKERHUB_IMAGE: f1161291/parse-video-py
 
 jobs:
   build-and-push:
@@ -37,11 +38,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: f1161291
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Extract metadata (tags)
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+            ${{ env.DOCKERHUB_IMAGE }}
           tags: |
             type=raw,value=latest
             type=sha,format=short
